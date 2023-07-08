@@ -1,5 +1,6 @@
 import time
 import pandas
+import os
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -7,7 +8,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
 count = 0
-excel_data = pandas.read_excel("users.xlsx", sheet_name="List")
+
+absolute_path = os.path.dirname(__file__)
+relative_path = "list/users.xlsx"
+full_path = os.path.join(absolute_path, relative_path)
+excel_data = pandas.read_excel(full_path, sheet_name="List")
 
 # Open Chrome and maximize window
 driver = webdriver.Chrome()

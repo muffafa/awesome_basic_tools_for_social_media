@@ -5,15 +5,16 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
+
 from time import sleep
 import pandas
 
 excel_data = pandas.read_excel('Recipients data.xlsx', sheet_name='Recipients')
-
 count = 0
 
-driver = webdriver.Chrome(ChromeDriverManager().install())
+# Open Chrome and maximize window
+driver = webdriver.Chrome()
+driver.maximize_window()
 driver.get('https://web.whatsapp.com')
 input("Press ENTER after login into Whatsapp Web and your chats are visiable.")
 for column in excel_data['Contact'].tolist():
@@ -24,7 +25,7 @@ for column in excel_data['Contact'].tolist():
         driver.get(url)
         try:
             click_btn = WebDriverWait(driver, 35).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='compose-btn-send']")))
+                EC.element_to_be_clickable((By.XPATH, '//*[@id="main"]/footer/div[1]/div/span[2]/div/div[2]/div[2]/button')))
         except Exception as e:
             print("Sorry message could not sent to " + str(excel_data['Contact'][count]))
         else:

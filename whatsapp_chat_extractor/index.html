@@ -53,13 +53,14 @@
 
     <script>
       function cleanMessages() {
-        let input = document.getElementById("inputText");
-        let output = input.value
+        let input = document.getElementById("inputText").value;
+        let output = input
           .split("\n")
           .map((line) => {
-            return line.replace(/^\[\d+\/\d+ \d+:\d+\] [^:]+: /, "");
+            return line.replace(/^\[.*?\]\s*.*?:\s*/, "");
           })
           .join("\n");
+
         let outputArea = document.getElementById("output");
         outputArea.value = output;
         autoGrow(outputArea);

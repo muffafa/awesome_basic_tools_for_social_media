@@ -33,10 +33,7 @@ for column in excel_data["usernames"].tolist():
     try:
         click_btn = WebDriverWait(driver, 35).until(
             EC.element_to_be_clickable(
-                (
-                    By.XPATH,
-                    "/html/body/div[2]/div/div/div[2]/div/div/div[1]/div[1]/div[2]/div[2]/section/main/div/header/section/div[1]/div[1]/div/div[2]/div",
-                )
+                (By.XPATH, "//div[@role='button' and text()='Message']")
             )
         )
     except Exception as e:

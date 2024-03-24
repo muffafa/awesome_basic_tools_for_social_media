@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CleanChat Extractor</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f4f4f4;
+        padding: 20px;
+      }
+      textarea {
+        width: calc(100% - 22px);
+        min-height: 150px;
+        margin-bottom: 10px;
+        padding: 10px;
+        font-size: 16px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        background-color: #fff;
+        resize: none;
+        overflow-y: hidden;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-bottom: 15px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      #output {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>WhatsApp Chat Extractor</h2>
+    <textarea
+      id="inputText"
+      oninput="autoGrow(this)"
+      placeholder="Paste your WhatsApp messages here..."
+    ></textarea
+    ><br />
+    <button onclick="cleanMessages()">Extract Messages</button>
+    <textarea id="output" readonly oninput="autoGrow(this)"></textarea><br />
+    <button onclick="copyText()">Copy Text</button>
+
+    <script>
+      function cleanMessages() {
+        let input = document.getElementById("inputText");
+        let output = input.value
+          .split("\n")
+          .map((line) => {
+            return line.replace(/^\[\d+\/\d+ \d+:\d+\] [^:]+: /, "");
+          })
+          .join("\n");
+        let outputArea = document.getElementById("output");
+        outputArea.value = output;
+        autoGrow(outputArea);
+      }
+
+      function copyText() {
+        let output = document.getElementById("output");
+        output.select();
+        document.execCommand("copy");
+      }
+
+      function autoGrow(element) {
+        element.style.height = "5px";
+        element.style.height = element.scrollHeight + "px";
+      }
+    </script>
+  </body>
+</html>

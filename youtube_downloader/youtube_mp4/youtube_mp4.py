@@ -2,7 +2,7 @@
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
-from pytube import YouTube
+from pytubefix import YouTube
 
 answer = str(input("Would you like to install highest resolution or want to show all options? (Y/n):"))
 

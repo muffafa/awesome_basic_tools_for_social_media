@@ -1,19 +1,30 @@
 # Program to send bulk messages through WhatsApp web from a text file
 # Author @muffafa
 
+import os
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from time import sleep
 
+# Get current directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct file paths
+data_file = os.path.join(current_dir, "data.txt")
+text_file = os.path.join(current_dir, "text.txt")
+
 # Read phone numbers from data.txt
-with open("data.txt", "r", encoding="utf-8") as f:
+with open(data_file, "r", encoding="utf-8") as f:
     numbers = [line.strip() for line in f if line.strip()]
 
 # Read message from text.txt
-with open("text.txt", "r", encoding="utf-8") as f:
+with open(text_file, "r", encoding="utf-8") as f:
     message = f.read().strip()
+
+# Replace new line characters with %0A for URL encoding
+message = message.replace("\n", "%0A")
 
 count = 0
 
@@ -33,7 +44,7 @@ for number in numbers:
                 EC.element_to_be_clickable(
                     (
                         By.XPATH,
-                        '//*[@id="main"]/footer/div[1]/div/span[2]/div/div[2]/div[2]/button',
+                        "/html/body/div[1]/div/div/div[3]/div[4]/div/footer/div[1]/div/span/div/div[2]/div[2]/button/span",
                     )
                 )
             )

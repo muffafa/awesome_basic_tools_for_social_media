@@ -15,18 +15,18 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 data_file = os.path.join(current_dir, "data.txt")
 text_file = os.path.join(current_dir, "text.txt")
 
-# Read phone numbers from data.txt
+#If there is an image
+image_path = "/Users/muffafa/Desktop/Muhammed-Mustafa-Savar.jpg"  # Update as needed
+
+# Read phone numbers
 with open(data_file, "r", encoding="utf-8") as f:
     numbers = [line.strip() for line in f if line.strip()]
 
-# Read message from text.txt
+# Read message
 with open(text_file, "r", encoding="utf-8") as f:
     message = f.read().strip()
 
-# Replace new line characters with %0A for URL encoding
 message = message.replace("\n", "%0A")
-
-count = 0
 
 driver = webdriver.Chrome()
 driver.maximize_window()
@@ -40,24 +40,59 @@ for number in numbers:
         url = f"https://web.whatsapp.com/send?phone={number}&text={message}"
         driver.get(url)
         try:
-            click_btn = WebDriverWait(driver, 35).until(
+            # # Send text message
+            # send_text_btn = WebDriverWait(driver, 35).until(
+            #     EC.element_to_be_clickable(
+            #         (By.XPATH, "/html/body/div[1]/div/div/div[3]/div[4]/div/footer/div[1]/div/span/div/div[2]/div[2]/button/span")
+            #     )
+            # )
+            # sleep(2)
+            # send_text_btn.click()
+            # sleep(5)
+            # print("Message sent to:", number)
+
+            # Attach image (directly to the file input)
+            attach_btn = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(
                     (
                         By.XPATH,
-                        "/html/body/div[1]/div/div/div[3]/div[4]/div/footer/div[1]/div/span/div/div[2]/div[2]/button/span",
+                        "/html/body/div[1]/div/div/div[3]/div[4]/div/footer/div[1]/div/span/div/div[1]/div/button/span",
                     )
                 )
             )
-        except Exception:
-            print("Sorry, message could not be sent to", number)
-        else:
+            attach_btn.click()
             sleep(2)
-            click_btn.click()
+
+            # Directly find the input under "Fotoğraflar ve Videolar"
+            photos_videos_input = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located(
+                    (
+                        By.XPATH,
+                        "//span[contains(text(),'Fotoğraflar ve Videolar')]/following::input[@type='file'][1]",
+                    )
+                )
+            )
+            photos_videos_input.send_keys(image_path)
+            sleep(2)
+
+            # After the image preview is displayed, click send
+            send_img_btn = WebDriverWait(driver, 35).until(
+                EC.element_to_be_clickable(
+                    (
+                        By.XPATH,
+                        "/html/body/div[1]/div/div/div[3]/div[2]/div[2]/span/div/div/div/div[2]/div/div[2]/div[2]/div/div/span",
+                    )
+                )
+            )
+            sleep(2)
+            send_img_btn.click()
             sleep(5)
             print("Message sent to:", number)
-        count += 1
+
+        except Exception:
+            print("Could not send to:", number)
     except Exception as e:
-        print("Failed to send message to", number, str(e))
+        print("Failed for:", number, str(e))
 
 driver.quit()
 print("The script executed successfully.")

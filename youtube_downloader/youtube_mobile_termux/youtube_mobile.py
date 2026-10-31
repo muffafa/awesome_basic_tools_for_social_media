@@ -1,6 +1,7 @@
 import os, sys, time, shutil, subprocess
 import pytubefix.request
-from pytubefix import YouTube
+from pytubefix import YouTube, extract
+from pytubefix import exceptions as ex
 
 # 2 MB parcalar halinde indir: ilerleme her 2 MB'da guncellenir
 pytubefix.request.default_range_size = 2 * 1024 * 1024
@@ -37,9 +38,46 @@ def indir(stream, hedef, ad, baslik):
     return yol
 
 
+def aciklama(hata, neden):
+    durumlar = [
+        (ex.VideoPrivate, "Video gizli; sadece sahibinin izin verdiği hesaplar izleyebilir."),
+        (ex.VideoRemovedByUploader, "Video, sahibi tarafından silinmiş."),
+        (ex.AccountTerminated, "Videonun kanalı YouTube tarafından kapatılmış."),
+        (ex.VideoRemovedByYouTubeForViolatingTOS, "Video, kural ihlali nedeniyle YouTube tarafından kaldırılmış."),
+        (ex.MembersOnly, "Video sadece kanal üyelerine açık."),
+        (ex.VideoBlockedByCopyright, "Video, telif hakkı nedeniyle senin ülkende engelli."),
+        (ex.VideoRegionBlocked, "Video sahibi bu videoyu senin ülkende yayınlamamış."),
+        (ex.AgeRestrictedError, "Yaş sınırlı video; YouTube hesabıyla giriş gerektiriyor."),
+        (ex.AgeCheckRequiredError, "Yaş sınırlı video; YouTube hesabıyla giriş gerektiriyor."),
+        (ex.AgeCheckRequiredAccountError, "Yaş sınırlı video; YouTube hesabıyla giriş gerektiriyor."),
+        (ex.BotDetection, "YouTube isteği bot sandı. Biraz sonra tekrar dene veya: pip install -U pytubefix --no-deps"),
+        (ex.LiveStreamError, "Bu bir canlı yayın; yayın bitince tekrar dene."),
+    ]
+    for sinif, mesaj in durumlar:
+        if isinstance(hata, sinif):
+            return mesaj
+    n = neden.lower()
+    if any(k in n for k in ("legal", "government", "yasal", "hükümet", "mahkeme")):
+        return "Video, yasal bir şikâyet veya resmi talep nedeniyle senin ülkende erişime kapatılmış."
+    if any(k in n for k in ("country", "ülke")):
+        return "Video senin ülkende kullanılamıyor."
+    return "Kesin sebep anlaşılamadı; yukarıdaki YouTube mesajına bak ya da linki YouTube uygulamasında aç."
+
+
 yt = YouTube(input("Video linki: "), on_progress_callback=ilerleme)
 print("Video bilgileri alınıyor...")
-videos = yt.streams.filter(adaptive=True, only_video=True).order_by("resolution").desc()
+try:
+    videos = yt.streams.filter(adaptive=True, only_video=True).order_by("resolution").desc()
+except ex.VideoUnavailable as hata:
+    try:
+        _, nedenler = extract.playability_status(yt.vid_info)
+        neden = " ".join(str(r) for r in nedenler if r)
+    except Exception:
+        neden = ""
+    print("\nBu video indirilemiyor.")
+    print("YouTube'un mesajı:", neden or "(mesaj yok)")
+    print("Durum:", aciklama(hata, neden))
+    sys.exit(1)
 for i, s in enumerate(videos):
     print(f"{i}: {s.resolution} {s.fps}fps {s.mime_type} {s.filesize_mb:.0f}MB")
 sec = input("Numara seç (Enter = en yüksek): ")

@@ -1,4 +1,9 @@
-import os, sys, time, shutil, subprocess
+import os, sys, time, shutil, socket, subprocess, http.client
+
+# Sadece IPv4 kullan: bazi VPN'ler IPv6 trafigini tasimiyor
+_gai = socket.getaddrinfo
+socket.getaddrinfo = lambda h, p, f=0, *a, **k: _gai(h, p, socket.AF_INET, *a, **k)
+
 import pytubefix.request
 from pytubefix import YouTube, extract
 from pytubefix import exceptions as ex
@@ -6,6 +11,28 @@ from pytubefix import exceptions as ex
 # 2 MB parcalar halinde indir: ilerleme her 2 MB'da guncellenir
 pytubefix.request.default_range_size = 2 * 1024 * 1024
 
+# Bazi VPN'ler Python'un buyuk sayfa okumasini yarida kesiyor; o zaman sayfayi curl ile cek
+_python_get = pytubefix.request.get
+
+
+def _guvenli_get(url, extra_headers=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
+    try:
+        return _python_get(url, extra_headers, timeout)
+    except (http.client.IncompleteRead, ConnectionError):
+        komut = ["curl", "-4", "-sSL", "--fail", "--retry", "3",
+                 "-H", "User-Agent: Mozilla/5.0", "-H", "accept-language: en-US,en"]
+        for k, v in (extra_headers or {}).items():
+            komut += ["-H", f"{k}: {v}"]
+        sonuc = subprocess.run(komut + [url], capture_output=True)
+        if sonuc.returncode != 0:
+            raise ConnectionError(sonuc.stderr.decode(errors="replace").strip())
+        return sonuc.stdout.decode("utf-8")
+
+
+pytubefix.request.get = _guvenli_get
+
+GIRIS = any(a.strip("-—–") == "giris" for a in sys.argv[1:])
+KOMUT = f"python {sys.argv[0]} --giris"
 t0 = time.time()
 
 
@@ -33,7 +60,7 @@ def indir(stream, hedef, ad, baslik):
     global t0
     print(f"{baslik} ({stream.filesize_mb:.1f} MB)")
     t0 = time.time()
-    yol = stream.download(output_path=hedef, filename=ad)
+    yol = stream.download(output_path=hedef, filename=ad, timeout=30, max_retries=5)
     print(f"\n  tamamlandı, {sure(time.time() - t0)} sürdü")
     return yol
 
@@ -47,10 +74,11 @@ def aciklama(hata, neden):
         (ex.MembersOnly, "Video sadece kanal üyelerine açık."),
         (ex.VideoBlockedByCopyright, "Video, telif hakkı nedeniyle senin ülkende engelli."),
         (ex.VideoRegionBlocked, "Video sahibi bu videoyu senin ülkende yayınlamamış."),
-        (ex.AgeRestrictedError, "Yaş sınırlı video; YouTube hesabıyla giriş gerektiriyor."),
-        (ex.AgeCheckRequiredError, "Yaş sınırlı video; YouTube hesabıyla giriş gerektiriyor."),
-        (ex.AgeCheckRequiredAccountError, "Yaş sınırlı video; YouTube hesabıyla giriş gerektiriyor."),
-        (ex.BotDetection, "YouTube isteği bot sandı. Biraz sonra tekrar dene veya: pip install -U pytubefix --no-deps"),
+        (ex.AgeRestrictedError, "Yaş sınırlı video; giriş gerekiyor: " + KOMUT),
+        (ex.AgeCheckRequiredError, "Yaş sınırlı video; giriş gerekiyor: " + KOMUT),
+        (ex.AgeCheckRequiredAccountError, "Yaş sınırlı video; giriş gerekiyor: " + KOMUT),
+        (ex.BotDetection, "YouTube bu bağlantıyı bot sandı (VPN'lerde sık olur). "
+                          "Başka bir VPN sunucusu dene ya da giriş yaparak çalıştır: " + KOMUT),
         (ex.LiveStreamError, "Bu bir canlı yayın; yayın bitince tekrar dene."),
     ]
     for sinif, mesaj in durumlar:
@@ -64,11 +92,54 @@ def aciklama(hata, neden):
     return "Kesin sebep anlaşılamadı; yukarıdaki YouTube mesajına bak ya da linki YouTube uygulamasında aç."
 
 
-yt = YouTube(input("Video linki: "), on_progress_callback=ilerleme)
+url = input("Video linki: ")
 print("Video bilgileri alınıyor...")
-try:
-    videos = yt.streams.filter(adaptive=True, only_video=True).order_by("resolution").desc()
-except ex.VideoUnavailable as hata:
+if GIRIS:
+    print("Giriş modu: ilk seferde ekrana çıkan kodu google.com/device adresine gir.")
+
+# Bot kontrolune takilirsa sirayla diger YouTube istemcilerini dene
+istemciler = [None] if GIRIS else [None, "WEB", "TV", "IOS", "ANDROID_VR"]
+AG_HATALARI = (http.client.HTTPException, OSError)  # baglanti kopmasi, DNS, zaman asimi
+
+
+def bilgi_al(ayar):
+    """Kalite listesini al; baglanti koparsa ayni istemciyle 3 kez dene."""
+    global yt
+    for deneme in range(3):
+        yt = YouTube(url, **ayar)
+        try:
+            return yt.streams.filter(adaptive=True, only_video=True).order_by("resolution").desc()
+        except AG_HATALARI:
+            if deneme == 2:
+                raise
+            print(f"  bağlantı koptu, tekrar deneniyor ({deneme + 2}/3)...")
+            time.sleep(2)
+
+
+yt, videos, hata = None, None, None
+for ist in istemciler:
+    ayar = {"on_progress_callback": ilerleme}
+    if GIRIS:
+        ayar.update(use_oauth=True, allow_oauth_cache=True)
+    elif ist:
+        ayar["client"] = ist
+    try:
+        videos = bilgi_al(ayar)
+        break
+    except (ex.BotDetection, ex.LoginRequired, ex.PoTokenRequired) as h:
+        hata = h
+        print(f"  {ist or 'varsayılan'} istemcisi bot kontrolüne takıldı, başkası deneniyor...")
+    except ex.VideoUnavailable as h:
+        hata = h
+        break
+    except AG_HATALARI as h:
+        hata = h
+        print(f"  {ist or 'varsayılan'} istemcisiyle bağlanılamadı, başkası deneniyor...")
+
+if videos is None:
+    if isinstance(hata, AG_HATALARI):
+        print("\nYouTube'a bağlanılamadı. İnternetini veya VPN bağlantını kontrol edip tekrar dene.")
+        sys.exit(1)
     try:
         _, nedenler = extract.playability_status(yt.vid_info)
         neden = " ".join(str(r) for r in nedenler if r)
@@ -78,6 +149,7 @@ except ex.VideoUnavailable as hata:
     print("YouTube'un mesajı:", neden or "(mesaj yok)")
     print("Durum:", aciklama(hata, neden))
     sys.exit(1)
+
 for i, s in enumerate(videos):
     print(f"{i}: {s.resolution} {s.fps}fps {s.mime_type} {s.filesize_mb:.0f}MB")
 sec = input("Numara seç (Enter = en yüksek): ")
